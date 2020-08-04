@@ -3,7 +3,6 @@ using RimWorld.Planet;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Verse;
 
 namespace Capitalism
@@ -49,7 +48,6 @@ namespace Capitalism
 
         public Dictionary<ThingDef, float> GeneratePriceModifiers()
         {
-            //Messages.Message("Regen price modifiers", MessageTypeDefOf.NeutralEvent);
             var totalInCirculation = new Dictionary<ThingDef, int>();
             var totalTraded = new Dictionary<ThingDef, int>();
 
@@ -60,8 +58,9 @@ namespace Capitalism
                 var inStock = settlement.trader.StockListForReading;
                 foreach (var t in inStock)
                 {
-                    if (!totalInCirculation.ContainsKey(t.def)) totalInCirculation[t.def] = 0;
-                    totalInCirculation[t.def] += t.stackCount;
+                    var def = CapitalismUtils.GroupCertainThingDefs(t.def);
+                    if (!totalInCirculation.ContainsKey(def)) totalInCirculation[def] = 0;
+                    totalInCirculation[def] += t.stackCount;
                 }
             }
 
@@ -85,13 +84,6 @@ namespace Capitalism
                 }
             }
 
-            foreach (var settlement in Find.WorldObjects.Settlements)
-            {
-                var trader = settlement.trader;
-                var prop = trader.GetType().GetField("everGeneratedStock", BindingFlags.NonPublic | BindingFlags.Instance);
-                prop.SetValue(trader, false);
-            }
-
             Messages.Message("New price modifiers: " + string.Join(", ", priceModifiers.Select(kv => kv.Key.label + ":" + kv.Value.ToString("F"))), MessageTypeDefOf.NeutralEvent);
 
             return priceModifiers;
@@ -105,23 +97,13 @@ namespace Capitalism
             if (registeredTrades == null) registeredTrades = new List<ThingTrade>();
         }
 
-        /*public void RegisterTrade(Settlement settlement, ThingDef thingDef, int count)
-        {
-            RegisterTrade(null, settlement, thingDef, count);
-        }
-
-        public void RegisterTrade(Faction faction, ThingDef thingDef, int count)
-        {
-            RegisterTrade(faction, null, thingDef, count);
-        }*/
-
         public void RegisterTrade(Faction faction, Settlement settlement, ThingDef thingDef, int count)
         {
             registeredTrades.Add(new ThingTrade()
             {
                 expiresAtTick = Find.TickManager.TicksGame + MaxTradeAge,
                 count = count,
-                thingDef = thingDef,
+                thingDef = CapitalismUtils.GroupCertainThingDefs(thingDef),
                 settlement = settlement,
                 faction = faction
             });
@@ -131,7 +113,7 @@ namespace Capitalism
         private void UpdateRegisteredTrades()
         {
             var expiredTrades = registeredTrades
-                    .Where(t => t.expiresAtTick <= Find.TickManager.TicksGame)
+                    .Where(t => t.HasExpired)
                     .ToList();
             foreach (var t in expiredTrades)
             {
@@ -140,7 +122,7 @@ namespace Capitalism
             if (expiredTrades.Any()) priceModifiers = null;
 
             registeredTrades = registeredTrades
-                .Where(t => t.expiresAtTick > Find.TickManager.TicksGame)
+                .Where(t => !t.HasExpired)
                 .ToList();
         }
 
@@ -160,6 +142,8 @@ namespace Capitalism
                 Scribe_References.Look(ref settlement, "settlement");
                 Scribe_References.Look(ref faction, "faction");
             }
+
+            public bool HasExpired => expiresAtTick >= Find.TickManager.TicksGame;
         }
     }
 }
