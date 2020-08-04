@@ -7,6 +7,7 @@ using System.Reflection.Emit;
 
 namespace Capitalism.Patches
 {
+    // Add the supply/demand row to price tooltip
     [HarmonyPatch(typeof(Tradeable), "GetPriceTooltip")]
     public class Patch_GetPriceTooltip
     {
