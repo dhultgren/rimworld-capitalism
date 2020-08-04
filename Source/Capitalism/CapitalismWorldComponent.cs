@@ -1,5 +1,6 @@
 ﻿using RimWorld;
 using RimWorld.Planet;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -11,7 +12,7 @@ namespace Capitalism
     public class CapitalismWorldComponent : WorldComponent
     {
         private static readonly int UpdateFrequency = 500;
-        private static readonly int MaxTradeAge = 2000;
+        private static readonly int MaxTradeAge = 30000;
 
         private List<ThingTrade> registeredTrades = new List<ThingTrade>();
         private int ticksSinceUpdate = 0;
@@ -38,18 +39,6 @@ namespace Capitalism
             }
         }
 
-        public void RegisterTrade(Settlement settlement, ThingDef thingDef, int count)
-        {
-            registeredTrades.Add(new ThingTrade()
-            {
-                expiresAtTick = Find.TickManager.TicksGame + MaxTradeAge,
-                count = count,
-                thingDef = thingDef,
-                settlement = settlement
-            });
-            priceModifiers = null;
-        }
-
         public void ForgetTradesFor(Settlement settlement)
         {
             registeredTrades = registeredTrades
@@ -60,7 +49,7 @@ namespace Capitalism
 
         public Dictionary<ThingDef, float> GeneratePriceModifiers()
         {
-            Messages.Message("Regen price modifiers", MessageTypeDefOf.NeutralEvent);
+            //Messages.Message("Regen price modifiers", MessageTypeDefOf.NeutralEvent);
             var totalInCirculation = new Dictionary<ThingDef, int>();
             var totalTraded = new Dictionary<ThingDef, int>();
 
@@ -89,8 +78,10 @@ namespace Capitalism
                 {
                     var inCirculation = pair.Value;
                     var boughtByPlayer = totalTraded[pair.Key];
-                    var inCirculationWithoutPlayer = inCirculation - boughtByPlayer;
-                    priceModifiers[pair.Key] = inCirculation / (float)inCirculationWithoutPlayer;
+                    var inCirculationWithoutPlayer = inCirculation + boughtByPlayer;
+                    var preClampModifier = (float)Math.Sqrt(inCirculationWithoutPlayer / (float)inCirculation);
+                    var maxModifier = Capitalism.Settings.MaxSupplyDemandChangePercent / 100f;
+                    priceModifiers[pair.Key] = Math.Min(Math.Max(preClampModifier, 1 / maxModifier), maxModifier);
                 }
             }
 
@@ -101,6 +92,8 @@ namespace Capitalism
                 prop.SetValue(trader, false);
             }
 
+            Messages.Message("New price modifiers: " + string.Join(", ", priceModifiers.Select(kv => kv.Key.label + ":" + kv.Value.ToString("F"))), MessageTypeDefOf.NeutralEvent);
+
             return priceModifiers;
         }
 
@@ -110,6 +103,29 @@ namespace Capitalism
             Scribe_Values.Look(ref ticksSinceUpdate, "ticksSinceUpdate");
             Scribe_Collections.Look(ref registeredTrades, "registeredTrades", LookMode.Deep);
             if (registeredTrades == null) registeredTrades = new List<ThingTrade>();
+        }
+
+        /*public void RegisterTrade(Settlement settlement, ThingDef thingDef, int count)
+        {
+            RegisterTrade(null, settlement, thingDef, count);
+        }
+
+        public void RegisterTrade(Faction faction, ThingDef thingDef, int count)
+        {
+            RegisterTrade(faction, null, thingDef, count);
+        }*/
+
+        public void RegisterTrade(Faction faction, Settlement settlement, ThingDef thingDef, int count)
+        {
+            registeredTrades.Add(new ThingTrade()
+            {
+                expiresAtTick = Find.TickManager.TicksGame + MaxTradeAge,
+                count = count,
+                thingDef = thingDef,
+                settlement = settlement,
+                faction = faction
+            });
+            priceModifiers = null;
         }
 
         private void UpdateRegisteredTrades()
@@ -134,6 +150,7 @@ namespace Capitalism
             public int count;
             public int expiresAtTick;
             public Settlement settlement;
+            public Faction faction;
 
             public void ExposeData()
             {
@@ -141,6 +158,7 @@ namespace Capitalism
                 Scribe_Values.Look(ref count, "count");
                 Scribe_Values.Look(ref expiresAtTick, "expiresAtTick");
                 Scribe_References.Look(ref settlement, "settlement");
+                Scribe_References.Look(ref faction, "faction");
             }
         }
     }
