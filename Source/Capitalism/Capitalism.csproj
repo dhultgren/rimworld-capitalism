@@ -59,6 +59,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Capitalism.cs" />
+    <Compile Include="CapitalismSettings.cs" />
     <Compile Include="CapitalismUtils.cs" />
     <Compile Include="CapitalismWorldComponent.cs" />
     <Compile Include="Patches\Patch_ForgetTradesOnRegenerateStock.cs" />
