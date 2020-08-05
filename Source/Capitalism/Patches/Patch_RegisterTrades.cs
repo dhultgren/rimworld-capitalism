@@ -18,9 +18,9 @@ namespace Capitalism.Patches
             {
                 comp.RegisterTrade(trader.Faction, trader, ___def, action == TradeAction.PlayerSells ? -___stackCount : ___stackCount);
 
-                if (trader is Pawn)
+                if (trader is Caravan || trader is Pawn)
                 {
-                    comp.RegisterCaravanTrader(trader as Pawn, trader.Goods.ToList());
+                    comp.RegisterCaravanTrader(trader as Pawn, trader.TraderName, trader.Goods.ToList());
                 }
                 else if (trader is TradeShip)
                 {

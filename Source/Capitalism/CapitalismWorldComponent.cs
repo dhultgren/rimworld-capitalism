@@ -116,7 +116,7 @@ namespace Capitalism
         {
             var timeToForget = trader is Settlement
                 ? Capitalism.Settings.RememberSettlementMaxTime
-                : trader is Pawn
+                : trader is Pawn || trader is Caravan
                     ? Capitalism.Settings.RememberCaravanTime
                     : Capitalism.Settings.RememberOrbitalTradersTime;
             registeredTrades.Add(new ThingTrade()
@@ -130,9 +130,9 @@ namespace Capitalism
             priceModifiers = null;
         }
 
-        public void RegisterCaravanTrader(Pawn pawn, List<Thing> goods)
+        public void RegisterCaravanTrader(Pawn pawn, string name, List<Thing> goods)
         {
-            RegisterTemporaryTrader(pawn, null, goods, Capitalism.Settings.RememberCaravanTime);
+            RegisterTemporaryTrader(pawn, name, goods, Capitalism.Settings.RememberCaravanTime);
         }
 
         public void RegisterOrbitalTrader(string name, List<Thing> goods)
