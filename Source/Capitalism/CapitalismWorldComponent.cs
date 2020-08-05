@@ -11,9 +11,12 @@ namespace Capitalism
     public class CapitalismWorldComponent : WorldComponent
     {
         private static readonly int UpdateFrequency = 500;
-        private static readonly int MaxTradeAge = 30000;
+        private static readonly int ForgetTradeTime = 30000;
+        private static readonly int RememberCaravanTime = 30000;
+        private static readonly int RememberOrbitalTradersTime = RememberCaravanTime / 2;
 
         private List<ThingTrade> registeredTrades = new List<ThingTrade>();
+        private List<TemporaryTrader> temporaryTraders = new List<TemporaryTrader>();
         private int ticksSinceUpdate = 0;
 
         private Dictionary<ThingDef, float> priceModifiers;
@@ -48,10 +51,12 @@ namespace Capitalism
 
         public Dictionary<ThingDef, float> GeneratePriceModifiers()
         {
+            ExpireOldData(registeredTrades);
+            ExpireOldData(temporaryTraders);
+
+
             var totalInCirculation = new Dictionary<ThingDef, int>();
             var totalTraded = new Dictionary<ThingDef, int>();
-
-            UpdateRegisteredTrades();
 
             foreach (var settlement in Find.WorldObjects.Settlements)
             {
@@ -64,6 +69,15 @@ namespace Capitalism
                 }
             }
 
+            foreach (var trader in temporaryTraders)
+            {
+                foreach (var t in trader.goods)
+                {
+                    var def = CapitalismUtils.GroupCertainThingDefs(t.def);
+                    if (!totalInCirculation.ContainsKey(def)) totalInCirculation[def] = 0;
+                    totalInCirculation[def] += t.stackCount;
+                }
+            }
             foreach (var t in registeredTrades)
             {
                 if (!totalTraded.ContainsKey(t.thingDef)) totalTraded[t.thingDef] = 0;
@@ -84,7 +98,7 @@ namespace Capitalism
                 }
             }
 
-            Messages.Message("New price modifiers: " + string.Join(", ", priceModifiers.Select(kv => kv.Key.label + ":" + kv.Value.ToString("F"))), MessageTypeDefOf.NeutralEvent);
+            CapitalismUtils.LogAndMessage("New price modifiers: " + string.Join(", ", priceModifiers.Select(kv => kv.Key.label + ":" + kv.Value.ToString("F"))));
 
             return priceModifiers;
         }
@@ -94,14 +108,16 @@ namespace Capitalism
             base.ExposeData();
             Scribe_Values.Look(ref ticksSinceUpdate, "ticksSinceUpdate");
             Scribe_Collections.Look(ref registeredTrades, "registeredTrades", LookMode.Deep);
+            Scribe_Collections.Look(ref temporaryTraders, "temporaryTraders", LookMode.Deep);
             if (registeredTrades == null) registeredTrades = new List<ThingTrade>();
+            if (temporaryTraders == null) temporaryTraders = new List<TemporaryTrader>();
         }
 
         public void RegisterTrade(Faction faction, Settlement settlement, ThingDef thingDef, int count)
         {
             registeredTrades.Add(new ThingTrade()
             {
-                expiresAtTick = Find.TickManager.TicksGame + MaxTradeAge,
+                expiresAtTick = Find.TickManager.TicksGame + ForgetTradeTime,
                 count = count,
                 thingDef = CapitalismUtils.GroupCertainThingDefs(thingDef),
                 settlement = settlement,
@@ -110,23 +126,52 @@ namespace Capitalism
             priceModifiers = null;
         }
 
-        private void UpdateRegisteredTrades()
+        public void RegisterCaravanTrader(Pawn pawn, List<Thing> goods)
         {
-            var expiredTrades = registeredTrades
-                    .Where(t => t.HasExpired)
-                    .ToList();
-            foreach (var t in expiredTrades)
-            {
-                Messages.Message("Forgetting trade " + t.count + "x " + t.thingDef.label, MessageTypeDefOf.NeutralEvent);
-            }
-            if (expiredTrades.Any()) priceModifiers = null;
+            RegisterTemporaryTrader(pawn, null, goods, RememberCaravanTime);
+        }
 
-            registeredTrades = registeredTrades
+        public void RegisterOrbitalTrader(string name, List<Thing> goods)
+        {
+            RegisterTemporaryTrader(null, name, goods, RememberOrbitalTradersTime);
+        }
+
+        private void RegisterTemporaryTrader(Pawn pawn, string name, List<Thing> goods, int forgetTraderAfter)
+        {
+            if (temporaryTraders.Any(t => t?.pawn == pawn && t?.name == name)) return;
+
+            temporaryTraders.Add(new TemporaryTrader
+            {
+                expiresAtTick = Find.TickManager.TicksGame + forgetTraderAfter,
+                pawn = pawn,
+                name = name,
+                goods = goods
+            });
+            CapitalismUtils.LogAndMessage("Registering temporary trader " + temporaryTraders.Last().ToString());
+        }
+
+        private void ExpireOldData(IEnumerable<IExpirable> expirableData)
+        {
+            var expired = expirableData
+                       .Where(t => t.HasExpired)
+                       .ToList();
+            foreach (var t in expired)
+            {
+                CapitalismUtils.LogAndMessage("Forgetting " + t.ToString());
+            }
+            if (expired.Any()) priceModifiers = null;
+
+            expirableData = expirableData
                 .Where(t => !t.HasExpired)
                 .ToList();
         }
 
-        class ThingTrade : IExposable
+        interface IExpirable
+        {
+            bool HasExpired { get; }
+        }
+
+        class ThingTrade : IExposable, IExpirable
         {
             public ThingDef thingDef;
             public int count;
@@ -143,7 +188,35 @@ namespace Capitalism
                 Scribe_References.Look(ref faction, "faction");
             }
 
-            public bool HasExpired => expiresAtTick >= Find.TickManager.TicksGame;
+            public bool HasExpired => Find.TickManager.TicksGame >= expiresAtTick;
+
+            public override string ToString()
+            {
+                return count + "x " + thingDef.label;
+            }
+        }
+
+        class TemporaryTrader : IExposable, IExpirable
+        {
+            public Pawn pawn;
+            public int expiresAtTick;
+            public string name;
+            public List<Thing> goods;
+
+            public void ExposeData()
+            {
+                Scribe_References.Look(ref pawn, "pawn");
+                Scribe_Values.Look(ref expiresAtTick, "expiresAtTick");
+                Scribe_Values.Look(ref name, "name");
+                Scribe_Collections.Look(ref goods, "goods", LookMode.Reference);
+            }
+
+            public override string ToString()
+            {
+                return pawn?.Label ?? name;
+            }
+
+            public bool HasExpired => Find.TickManager.TicksGame >= expiresAtTick;
         }
     }
 }

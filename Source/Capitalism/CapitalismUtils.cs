@@ -22,7 +22,7 @@ namespace Capitalism
 
         public static string AddPriceModifierText(ThingDef thingDef)
         {
-            if (TradeSession.trader.TraderKind.orbital) return string.Empty;
+            if (CapitalismUtils.ShouldIgnoreTrade()) return string.Empty;
 
             var modifier = GetPriceModifierIfExists(thingDef);
             if (modifier.HasValue)
@@ -39,6 +39,18 @@ namespace Capitalism
             if (thingDef.FirstThingCategory == ThingCategoryDefOf.Leathers) return ThingDefOf.Leather_Plain;
 
             return thingDef;
+        }
+
+        public static bool ShouldIgnoreTrade()
+        {
+            return false;
+            //return TradeSession.trader.TraderKind.orbital/* || TradeSession.giftMode*/;
+        }
+
+        public static void LogAndMessage(string text)
+        {
+            Log.Message(text);
+            Messages.Message(text, MessageTypeDefOf.NeutralEvent);
         }
     }
 }
