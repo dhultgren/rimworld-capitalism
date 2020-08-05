@@ -11,9 +11,6 @@ namespace Capitalism
     public class CapitalismWorldComponent : WorldComponent
     {
         private static readonly int UpdateFrequency = 500;
-        private static readonly int ForgetTradeTime = 30000;
-        private static readonly int RememberCaravanTime = 30000;
-        private static readonly int RememberOrbitalTradersTime = RememberCaravanTime / 2;
 
         private List<ThingTrade> registeredTrades = new List<ThingTrade>();
         private List<TemporaryTrader> temporaryTraders = new List<TemporaryTrader>();
@@ -115,14 +112,19 @@ namespace Capitalism
             if (temporaryTraders == null) temporaryTraders = new List<TemporaryTrader>();
         }
 
-        public void RegisterTrade(Faction faction, Settlement settlement, ThingDef thingDef, int count)
+        public void RegisterTrade(Faction faction, ITrader trader, ThingDef thingDef, int count)
         {
+            var timeToForget = trader is Settlement
+                ? Capitalism.Settings.RememberSettlementMaxTime
+                : trader is Pawn
+                    ? Capitalism.Settings.RememberCaravanTime
+                    : Capitalism.Settings.RememberOrbitalTradersTime;
             registeredTrades.Add(new ThingTrade()
             {
-                expiresAtTick = Find.TickManager.TicksGame + ForgetTradeTime,
+                expiresAtTick = Find.TickManager.TicksGame + timeToForget,
                 count = count,
                 thingDef = CapitalismUtils.GroupCertainThingDefs(thingDef),
-                settlement = settlement,
+                settlement = trader as Settlement,
                 faction = faction
             });
             priceModifiers = null;
@@ -130,12 +132,12 @@ namespace Capitalism
 
         public void RegisterCaravanTrader(Pawn pawn, List<Thing> goods)
         {
-            RegisterTemporaryTrader(pawn, null, goods, RememberCaravanTime);
+            RegisterTemporaryTrader(pawn, null, goods, Capitalism.Settings.RememberCaravanTime);
         }
 
         public void RegisterOrbitalTrader(string name, List<Thing> goods)
         {
-            RegisterTemporaryTrader(null, name, goods, RememberOrbitalTradersTime);
+            RegisterTemporaryTrader(null, name, goods, Capitalism.Settings.RememberOrbitalTradersTime);
         }
 
         private void RegisterTemporaryTrader(Pawn pawn, string name, List<Thing> goods, int forgetTraderAfter)

@@ -16,7 +16,7 @@ namespace Capitalism.Patches
             var comp = Find.World.GetComponent<CapitalismWorldComponent>();
             if (comp != null && ___def != ThingDefOf.Silver)
             {
-                comp.RegisterTrade(trader.Faction, trader as Settlement, ___def, action == TradeAction.PlayerSells ? -___stackCount : ___stackCount);
+                comp.RegisterTrade(trader.Faction, trader, ___def, action == TradeAction.PlayerSells ? -___stackCount : ___stackCount);
 
                 if (trader is Pawn)
                 {

@@ -5,6 +5,10 @@ namespace Capitalism
 {
     public class CapitalismSettings : ModSettings
     {
+        public readonly int RememberSettlementMaxTime = 30000;
+        public readonly int RememberCaravanTime = 30000;
+        public readonly int RememberOrbitalTradersTime = 15000;
+
         public int MaxSupplyDemandChangePercent = 300;
         public float EffectMultiplier = 1f;
 
