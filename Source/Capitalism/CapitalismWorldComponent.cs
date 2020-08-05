@@ -78,6 +78,7 @@ namespace Capitalism
                     totalInCirculation[def] += t.stackCount;
                 }
             }
+
             foreach (var t in registeredTrades)
             {
                 if (!totalTraded.ContainsKey(t.thingDef)) totalTraded[t.thingDef] = 0;
@@ -92,9 +93,10 @@ namespace Capitalism
                     var inCirculation = pair.Value;
                     var boughtByPlayer = totalTraded[pair.Key];
                     var inCirculationWithoutPlayer = inCirculation + boughtByPlayer;
-                    var preClampModifier = (float)Math.Sqrt(inCirculationWithoutPlayer / (float)inCirculation);
+                    var initialModifier = (float)Math.Sqrt(inCirculationWithoutPlayer / (float)inCirculation);
+                    var multipliedModifier = 1 + (initialModifier - 1) * Capitalism.Settings.EffectMultiplier;
                     var maxModifier = Capitalism.Settings.MaxSupplyDemandChangePercent / 100f;
-                    priceModifiers[pair.Key] = Math.Min(Math.Max(preClampModifier, 1 / maxModifier), maxModifier);
+                    priceModifiers[pair.Key] = Math.Min(Math.Max(multipliedModifier, 1 / maxModifier), maxModifier);
                 }
             }
 
